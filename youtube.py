@@ -6,10 +6,7 @@ import requests
 
 class YouTuBe():
     def get_real_url(self, rid):
-        header = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
-            "Connection": "keep-alive"
-        }
+        header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36","Connection": "keep-alive"}
         url = 'https://www.youtube.com/watch?v={}'.format(rid)
 
         r = requests.get(url=url, headers=header, timeout=30, verify=False)

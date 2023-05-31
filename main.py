@@ -48,8 +48,7 @@ def live():
         return redirect('http://0.0.0.0/')
     playcxt, is_m3u8 = Proxy().proxy_m3u8(playurl, baseurl, header)
     if is_m3u8 == 'True':
-        return Response(BytesIO(playcxt.encode("utf-8")), mimetype="audio/x-mpegurl",
-                        headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
+        return Response(BytesIO(playcxt.encode("utf-8")), mimetype="audio/x-mpegurl", headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
     elif is_m3u8 == 'False':
         return redirect(playcxt)
     else:

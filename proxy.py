@@ -1,4 +1,3 @@
-import os
 import re
 import json
 import requests
@@ -40,7 +39,7 @@ class Proxy():
                             line = url[:url.index('/', 8)] + line
                         else:
                             line = url[:url.rindex('/') + 1] + line
-                    line = proxyhead + b64encode(line.encode("utf-8")).decode("utf-8") + '&headers=' + b64encode(json.dumps(header).encode("utf-8")).decode("utf-8")+ '&proxy=' + proxy
+                    line = proxyhead + b64encode(line.encode("utf-8")).decode("utf-8") + '&headers=' + b64encode(json.dumps(header).encode("utf-8")).decode("utf-8")
                 if EXK_str != '':
                     line = EXK_str.replace(oURI, line)
                 m3u8List.append(line)
@@ -62,7 +61,7 @@ class Proxy():
                 start = 0
             m3u8str = "\n".join(m3u8List).strip('\n')
             return m3u8str, 'True'
-        except Exception:
+        except:
             return '', 'Erro'
         finally:
             try:
