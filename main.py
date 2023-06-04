@@ -151,9 +151,8 @@ async def proxy(ts_url: str, request: Request):
             status_code = 200
         return StreamingResponse(getChunk(r), status_code=status_code, headers=headers)
     except:
-        pass
-    finally:
         r.close()
+        pass
 
 
 def getChunk(streamable):
@@ -166,6 +165,7 @@ def getChunk(streamable):
                     return
                 yield chunk
         except:
+            stream.close()
             return
 
 
