@@ -2,7 +2,6 @@ import re
 import json
 import uvicorn
 import requests
-from io import BytesIO
 from base64 import b64decode, b64encode
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, StreamingResponse
@@ -122,7 +121,7 @@ async def live(rid: str, request: Request):
     if playurl == '':
         return RedirectResponse(url='http://0.0.0.0/')
     playcxt = getM3u8(playurl, baseurl)
-    return StreamingResponse(BytesIO(playcxt.encode("utf-8")), media_type="audio/x-mpegurl", headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
+    return StreamingResponse(playcxt, media_type="audio/x-mpegurl", headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
 
 
 @app.get('/proxy')
@@ -137,16 +136,21 @@ async def proxy(ts_url: str, request: Request):
             continue
         header[key] = value
         headers[key] = value
-    r = requests.get(url=url, headers=header, stream=True)
-    for key in r.headers:
-        if key.lower() in ['user-agent', 'host']:
-            continue
-        headers[key] = r.headers[key]
-    if 'Range' in headers:
-        status_code = 206
-    else:
-        status_code = 200
-    return StreamingResponse(getChunk(r), status_code=status_code, headers=headers)
+    try:
+        r = requests.get(url=url, headers=header, stream=True)
+        for key in r.headers:
+            if key.lower() in ['user-agent', 'host']:
+                continue
+            headers[key] = r.headers[key]
+        if 'Range' in headers:
+            status_code = 206
+        else:
+            status_code = 200
+        return StreamingResponse(getChunk(r), status_code=status_code, headers=headers)
+    except:
+        pass
+    finally:
+        r.close()
 
 
 def getChunk(streamable):
