@@ -2,6 +2,7 @@ import re
 import json
 import uvicorn
 import requests
+from io import BytesIO
 from base64 import b64decode, b64encode
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, StreamingResponse
@@ -35,6 +36,8 @@ def getplayUrl(rid):
         return ''
     return url
 
+
+# 获取M3U8
 def getM3u8(url, baseurl):
         m3u8List = []
         proxyhead = baseurl + '/proxy?ts_url='
@@ -121,7 +124,7 @@ async def live(rid: str, request: Request):
     if playurl == '':
         return RedirectResponse(url='http://0.0.0.0/')
     playcxt = getM3u8(playurl, baseurl)
-    return StreamingResponse(playcxt, media_type="audio/x-mpegurl", headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
+    return StreamingResponse(BytesIO(playcxt.encode("utf-8")), media_type="audio/x-mpegurl", headers={"Content-Disposition": "attachment; filename=proxied.m3u8"})
 
 
 @app.get('/proxy')
