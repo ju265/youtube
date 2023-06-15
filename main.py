@@ -98,6 +98,9 @@ async def favicon():
 # 获取油管M3u8
 @app.get('/live')
 async def live(rid: str, request: Request):
+    global tsnum
+    tsnum = 0
+    tscache = {}
     baseurl = str(request.url).split('/live')[0]
     try:
         content = await getplayUrl(rid, baseurl)
