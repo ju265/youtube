@@ -1,8 +1,10 @@
 import re
 import json
-import httpx
+import time
+
 import uvicorn
 import asyncio
+from httpx import AsyncClient
 from urllib.parse import urlparse
 from base64 import b64encode, b64decode
 from fastapi import FastAPI, Request, HTTPException
@@ -13,13 +15,15 @@ from fastapi.responses import Response, HTMLResponse, FileResponse, RedirectResp
 # 开始FastAPI及相关设置
 app = FastAPI()
 tscache = {}
+tsnum = 0
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
 }
+
 # 获取油管播放链接
 async def getplayUrl(rid, baseurl):
     url = 'https://www.youtube.com/watch?v={}'.format(rid)
-    async with httpx.AsyncClient() as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
     jostr_re = re.compile('var ytInitialPlayerResponse =(.*?});')
     jostr = jostr_re.findall(r.text)
@@ -39,7 +43,7 @@ async def getplayUrl(rid, baseurl):
     return content
 
 async def getM3U8(url, baseurl):
-    async with httpx.AsyncClient() as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
     m3u8str = ''
     tsurlList = []
@@ -57,17 +61,26 @@ async def getM3U8(url, baseurl):
     # 异步下载TS
     tasks = []
     for url in tsurlList:
-        if url not in tscache:
+        if url not in tscache and int(re.findall(r"\d+(?:\.\d+)?", url)[-2]) > tsnum:
             tasks.append(cachets(url))
     await asyncio.gather(*tasks)
     return m3u8str.strip('\n')
 
 
 async def cachets(url):
-    async with httpx.AsyncClient() as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
-        content = r.content
+    content = r.content
     tscache[url] = content
+
+
+async def delcache(url):
+    global tsnum
+    tsnum = int(re.findall(r"\d+(?:\.\d+)?", url)[-2])
+    keysList = list(tscache.keys())
+    for key in keysList:
+        if tsnum >= int(re.findall(r"\d+(?:\.\d+)?", key)[-2]):
+            del tscache[key]
 
 
 # 提供 index.html 文件
@@ -89,7 +102,7 @@ async def live(rid: str, request: Request):
     try:
         content = await getplayUrl(rid, baseurl)
     except:
-        pass
+        content = ''
     if content == '':
         return RedirectResponse(url='http://0.0.0.0/')
     return Response(content, headers={"Content-Type": "application/vnd.apple.mpegurl", "Content-Disposition": "attachment; filename=youtube.m3u8"})
@@ -104,7 +117,7 @@ async def proxym3u8(url: str, request: Request):
     try:
         content = await getM3U8(url, baseurl)
     except:
-        pass
+        content = ''
     if content == '':
         return RedirectResponse(url='http://0.0.0.0/')
     return Response(content, headers={"Content-Type": "application/vnd.apple.mpegurl", "Content-Disposition": "attachment; filename=youtube.m3u8"})
@@ -116,7 +129,7 @@ async def proxymedia(url: str, request: Request):
     url = b64decode(url.encode()).decode()
     if url in tscache:
         content = tscache[url]
-        del tscache[url]
+        await delcache(url)
         return Response(content=content, media_type="video/mp2t")
     else:
         raise HTTPException(status_code=404, detail="404 Not Found")
