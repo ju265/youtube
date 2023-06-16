@@ -17,15 +17,11 @@ header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
 }
 
-proxies = {
-    'http': 'http://127.0.0.1:10809',
-    'https': 'http://127.0.0.1:10809'
-}
 
 # 获取油管播放链接
 async def getplayUrl(rid, baseurl):
     url = 'https://www.youtube.com/watch?v={}'.format(rid)
-    r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
+    r = requests.get(url=url, headers=header, verify=False, timeout=30)
     jostr_re = re.compile('var ytInitialPlayerResponse =(.*?});')
     jostr = jostr_re.findall(r.text)
     if not jostr:
@@ -44,7 +40,7 @@ async def getplayUrl(rid, baseurl):
     return content
 
 async def getM3U8(url, baseurl):
-    r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
+    r = requests.get(url=url, headers=header, verify=False, timeout=30)
     m3u8str = ''
     tsurlList = []
     m3u8List = r.text.splitlines()
@@ -82,7 +78,7 @@ async def getM3U8(url, baseurl):
 
 def cachets(url):
     try:
-        r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
+        r = requests.get(url=url, headers=header, verify=False, timeout=30)
         content = r.content
     except:
         content = b''
