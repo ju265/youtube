@@ -15,15 +15,21 @@ from fastapi.responses import Response, HTMLResponse, FileResponse, RedirectResp
 # 开始FastAPI及相关设置
 app = FastAPI()
 tscache = {}
-tsnum = 0
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
 }
 
+# 测试
+proxies = {
+    'http://': 'http://127.0.0.1:10809',
+    'https://': 'http://127.0.0.1:10809'
+}
+
+
 # 获取油管播放链接
 async def getplayUrl(rid, baseurl):
     url = 'https://www.youtube.com/watch?v={}'.format(rid)
-    async with AsyncClient() as client:
+    async with AsyncClient(proxies=proxies) as client:
         r = await client.get(url)
     jostr_re = re.compile('var ytInitialPlayerResponse =(.*?});')
     jostr = jostr_re.findall(r.text)
@@ -43,7 +49,7 @@ async def getplayUrl(rid, baseurl):
     return content
 
 async def getM3U8(url, baseurl):
-    async with AsyncClient() as client:
+    async with AsyncClient(proxies=proxies) as client:
         r = await client.get(url)
     m3u8str = ''
     tsurlList = []
@@ -61,24 +67,31 @@ async def getM3U8(url, baseurl):
     # 异步下载TS
     tasks = []
     for url in tsurlList:
+        if 'tsnum' not in tscache:
+            tsnum = 0
+        else:
+            tsnum = tscache['tsnum']
         if url not in tscache and int(re.findall(r"\d+(?:\.\d+)?", url)[-2]) > tsnum:
-            tasks.append(cachets(url))
+            task = asyncio.create_task(cachets(url), name=f"cachets_{url}")
+            tasks.append(task)
     await asyncio.gather(*tasks)
     return m3u8str.strip('\n')
 
 
 async def cachets(url):
-    async with AsyncClient() as client:
+    async with AsyncClient(proxies=proxies) as client:
         r = await client.get(url)
     content = r.content
     tscache[url] = content
 
 
 async def delcache(url):
-    global tsnum
     tsnum = int(re.findall(r"\d+(?:\.\d+)?", url)[-2])
+    tscache['tsnum'] = tsnum
     keysList = list(tscache.keys())
     for key in keysList:
+        if key == 'tsnum':
+            continue
         if tsnum >= int(re.findall(r"\d+(?:\.\d+)?", key)[-2]):
             del tscache[key]
 
@@ -98,9 +111,15 @@ async def favicon():
 # 获取油管M3u8
 @app.get('/live')
 async def live(rid: str, request: Request):
-    global tsnum
-    tsnum = 0
-    tscache = {}
+    for task in asyncio.all_tasks():
+        if task.get_name().startswith('cachets'):
+            task.cancel()
+    keysList = list(tscache.keys())
+    for key in keysList:
+        if key == 'tsnum':
+            tscache['tsnum'] = 0
+        else:
+            del tscache[key]
     baseurl = str(request.url).split('/live')[0]
     try:
         content = await getplayUrl(rid, baseurl)
@@ -130,6 +149,11 @@ async def proxym3u8(url: str, request: Request):
 @app.get('/proxymedia')
 async def proxymedia(url: str, request: Request):
     url = b64decode(url.encode()).decode()
+    if url in tscache:
+        content = tscache[url]
+        await delcache(url)
+        return Response(content=content, media_type="video/mp2t")
+    await cachets(url)
     if url in tscache:
         content = tscache[url]
         await delcache(url)
