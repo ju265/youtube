@@ -19,17 +19,11 @@ header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
 }
 
-# 测试
-proxies = {
-    'http://': 'http://127.0.0.1:10809',
-    'https://': 'http://127.0.0.1:10809'
-}
-
 
 # 获取油管播放链接
 async def getplayUrl(rid, baseurl):
     url = 'https://www.youtube.com/watch?v={}'.format(rid)
-    async with AsyncClient(proxies=proxies) as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
     jostr_re = re.compile('var ytInitialPlayerResponse =(.*?});')
     jostr = jostr_re.findall(r.text)
@@ -49,7 +43,7 @@ async def getplayUrl(rid, baseurl):
     return content
 
 async def getM3U8(url, baseurl):
-    async with AsyncClient(proxies=proxies) as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
     m3u8str = ''
     tsurlList = []
@@ -79,7 +73,7 @@ async def getM3U8(url, baseurl):
 
 
 async def cachets(url):
-    async with AsyncClient(proxies=proxies) as client:
+    async with AsyncClient() as client:
         r = await client.get(url)
     content = r.content
     tscache[url] = content
