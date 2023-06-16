@@ -1,11 +1,9 @@
 import re
 import json
-import time
-
 import uvicorn
-import asyncio
-from httpx import AsyncClient
+import requests
 from urllib.parse import urlparse
+from threading import Thread, enumerate
 from base64 import b64encode, b64decode
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response, HTMLResponse, FileResponse, RedirectResponse, StreamingResponse
@@ -19,12 +17,15 @@ header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
 }
 
+proxies = {
+    'http': 'http://127.0.0.1:10809',
+    'https': 'http://127.0.0.1:10809'
+}
 
 # 获取油管播放链接
 async def getplayUrl(rid, baseurl):
     url = 'https://www.youtube.com/watch?v={}'.format(rid)
-    async with AsyncClient() as client:
-        r = await client.get(url)
+    r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
     jostr_re = re.compile('var ytInitialPlayerResponse =(.*?});')
     jostr = jostr_re.findall(r.text)
     if not jostr:
@@ -43,8 +44,7 @@ async def getplayUrl(rid, baseurl):
     return content
 
 async def getM3U8(url, baseurl):
-    async with AsyncClient() as client:
-        r = await client.get(url)
+    r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
     m3u8str = ''
     tsurlList = []
     m3u8List = r.text.splitlines()
@@ -58,28 +58,38 @@ async def getM3U8(url, baseurl):
             m3u8str = m3u8str + baseurl + append + b64encode(line.encode()).decode() + '\n'
         else:
             m3u8str = m3u8str + line + '\n'
-    # 异步下载TS
-    tasks = []
-    for url in tsurlList:
-        if 'tsnum' not in tscache:
-            tsnum = 0
-        else:
-            tsnum = tscache['tsnum']
-        if url not in tscache and int(re.findall(r"\d+(?:\.\d+)?", url)[-2]) > tsnum:
-            task = asyncio.create_task(cachets(url), name=f"cachets_{url}")
-            tasks.append(task)
-    await asyncio.gather(*tasks)
+    # 下载TS
+    threadnum = 0
+    if 'tsnum' in tscache:
+        urlnum = tscache['tsnum']
+    else:
+        urlnum= 0
+    for tsurl in tsurlList:
+        for t in enumerate():
+            if t.name.startswith('catchts'):
+                threadnum += 1
+        if threadnum >= 16:
+            break
+        # 油管为-2,其他碰到再说
+        tsurlnum = int(re.findall(r"\d+(?:\.\d+)?", tsurl)[-2])
+        if urlnum >= tsurlnum:
+            continue
+        thread = Thread(target=cachets, args=(tsurl,), name='catchts_{}'.format(tsurl))
+        thread.daemon = True
+        thread.start()
     return m3u8str.strip('\n')
 
 
-async def cachets(url):
-    async with AsyncClient() as client:
-        r = await client.get(url)
-    content = r.content
+def cachets(url):
+    try:
+        r = requests.get(url=url, headers=header, verify=False, timeout=30, proxies=proxies)
+        content = r.content
+    except:
+        content = b''
     tscache[url] = content
 
 
-async def delcache(url):
+def delcache(url):
     tsnum = int(re.findall(r"\d+(?:\.\d+)?", url)[-2])
     tscache['tsnum'] = tsnum
     keysList = list(tscache.keys())
@@ -105,9 +115,6 @@ async def favicon():
 # 获取油管M3u8
 @app.get('/live')
 async def live(rid: str, request: Request):
-    for task in asyncio.all_tasks():
-        if task.get_name().startswith('cachets'):
-            task.cancel()
     keysList = list(tscache.keys())
     for key in keysList:
         if key == 'tsnum':
@@ -145,15 +152,11 @@ async def proxymedia(url: str, request: Request):
     url = b64decode(url.encode()).decode()
     if url in tscache:
         content = tscache[url]
-        await delcache(url)
-        return Response(content=content, media_type="video/mp2t")
-    await cachets(url)
-    if url in tscache:
-        content = tscache[url]
-        await delcache(url)
-        return Response(content=content, media_type="video/mp2t")
     else:
-        raise HTTPException(status_code=404, detail="404 Not Found")
+        cachets(url)
+        content = tscache[url]
+    delcache(url)
+    return Response(content=content, media_type="video/mp2t")
 
 
 if __name__ == '__main__':
